@@ -2,6 +2,9 @@ import { useRef, useEffect } from "react";
 
 import { TranscriberData } from "../hooks/useTranscriber";
 import { formatAudioTimestamp } from "../utils/AudioUtils";
+import OpenAI from "openai";
+import { OPENAI_API_KEY } from "../env";
+import { judgePrompt } from "../prompt";
 
 interface Props {
     transcribedData: TranscriberData | undefined;
@@ -18,14 +21,32 @@ export default function Transcript({ transcribedData }: Props) {
         link.click();
         URL.revokeObjectURL(url);
     };
-    const exportTXT = () => {
+    const exportTXT = async () => {
         let chunks = transcribedData?.chunks ?? [];
         let text = chunks
             .map((chunk) => chunk.text)
             .join("")
             .trim();
 
-        const blob = new Blob([text], { type: "text/plain" });
+        const openAI = new OpenAI({
+            apiKey: OPENAI_API_KEY,
+            dangerouslyAllowBrowser: true,
+        });
+
+        const response = await openAI.chat.completions.create({
+            model: "gpt-4o",
+            messages: [
+                { role: "user", content: `${judgePrompt} \n\n ${text}` },
+            ],
+        });
+
+        const summary = response.choices[0].message.content || "";
+
+        console.log(`summary: ${summary}`);
+
+        const blob = new Blob([summary, "\n\n", text], { type: "text/plain" });
+
+        console.log(text);
         saveBlob(blob, "transcript.txt");
     };
     const exportJSON = () => {
@@ -78,13 +99,7 @@ export default function Transcript({ transcribedData }: Props) {
                         onClick={exportTXT}
                         className='text-white bg-green-500 hover:bg-green-600 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-4 py-2 text-center mr-2 dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800 inline-flex items-center'
                     >
-                        Export TXT
-                    </button>
-                    <button
-                        onClick={exportJSON}
-                        className='text-white bg-green-500 hover:bg-green-600 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-4 py-2 text-center mr-2 dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800 inline-flex items-center'
-                    >
-                        Export JSON
+                        Export Notes
                     </button>
                 </div>
             )}
